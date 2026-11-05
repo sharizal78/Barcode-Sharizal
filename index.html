@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Barcode Scanner</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="icon" type="image/png" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- HTML5-QRCode Library -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <!-- SheetJS (xlsx) Library for Exporting to Excel -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        #reader video {
+            object-fit: cover !important;
+            border-radius: 0.75rem;
+            width: 100% !important;
+            max-height: 48vh;
+        }
+        #reader {
+            border: none !important;
+        }
+        #reader__scan_region {
+            background: rgba(0,0,0,0.2);
+            border-radius: 0.75rem;
+        }
+        #reader__dashboard_section_swaplink,
+        #reader__dashboard_section_csr { 
+            display: none !important; 
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans flex flex-col justify-between pb-16 sm:pb-0">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-slate-800/90 border-b border-slate-700 sticky top-0 z-30 backdrop-blur-md shadow-lg">
+        <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-900 shadow-md shadow-emerald-500/20">
+                    <i class="fa-solid fa-qrcode text-xl font-bold"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold leading-tight text-white tracking-wide">Barcode Scanner</h1>
+                    <p class="text-xs text-emerald-400 font-semibold tracking-wide uppercase">Apps by Sharizal</p>
+                </div>
+            </div>
+            
+            <!-- Header Tab Switcher (Desktop / Tablet) -->
+            <div class="hidden sm:flex items-center bg-slate-900 p-1 rounded-xl border border-slate-700 space-x-1">
+                <button id="topTabLive" onclick="switchTab('live')" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 bg-emerald-600 text-white shadow-md">
+                    <i class="fa-solid fa-video"></i>
+                    <span>Live Stream</span>
+                </button>
+                <button id="topTabNative" onclick="switchTab('native')" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 text-slate-400 hover:text-slate-200">
+                    <i class="fa-solid fa-camera-retro"></i>
+                    <span>Kamera Natif</span>
+                </button>
+                <button id="topTabList" onclick="switchTab('list')" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 text-slate-400 hover:text-slate-200">
+                    <i class="fa-solid fa-list-check"></i>
+                    <span>Senarai</span>
+                    <span id="scanCountBadgeHeader" class="bg-emerald-950 text-emerald-400 border border-emerald-800 text-[10px] px-1.5 py-0.5 rounded-full font-mono">0</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-3xl mx-auto w-full px-4 py-4 flex-grow space-y-4">
+
+        <!-- ================= PAGE 1: LIVE STREAM SCANNER ================= -->
+        <section id="pageLive" class="space-y-4">
+            <div class="bg-slate-800 rounded-2xl border border-slate-700 p-4 shadow-xl relative overflow-hidden">
+                <!-- Camera Toolbar -->
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2 border-b border-slate-700/60">
+                    <div class="flex items-center space-x-2 text-sm font-semibold text-slate-300">
+                        <i class="fa-solid fa-video text-emerald-400"></i>
+                        <span>Pengimbas Live Stream</span>
+                    </div>
+                    
+                    <div class="flex flex-wrap items-center gap-2">
+                        <!-- Camera Selection Dropdown -->
+                        <div class="flex items-center space-x-1 bg-slate-700 px-2 py-1 rounded-lg border border-slate-600 text-xs">
+                            <i class="fa-solid fa-camera text-emerald-400"></i>
+                            <select id="cameraSelect" onchange="changeCameraSource(this.value)" class="bg-transparent text-emerald-400 font-semibold focus:outline-none cursor-pointer">
+                                <option value="environment" class="bg-slate-800 text-slate-200">Kamera Belakang</option>
+                                <option value="user" class="bg-slate-800 text-slate-200">Kamera Depan</option>
+                            </select>
+                        </div>
+
+                        <button id="torchBtn" onclick="toggleTorch()" class="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-medium flex items-center transition-all">
+                            <i id="torchIcon" class="fa-solid fa-bolt mr-1.5"></i>
+                            <span id="torchStatus">Lampu</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Scanner Viewfinder Box -->
+                <div class="relative w-full bg-slate-950 rounded-xl overflow-hidden min-h-[260px] flex flex-col items-center justify-center border border-slate-800">
+                    <div id="reader" class="w-full"></div>
+                    <div id="fileReader" style="display:none"></div>
+                    
+                    <div id="startBtnContainer" class="p-6 text-center">
+                        <button onclick="startScanner()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold py-2.5 px-5 rounded-xl shadow-lg transition-all flex items-center justify-center mx-auto space-x-2">
+                            <i class="fa-solid fa-play"></i>
+                            <span>Aktifkan Kamera Live</span>
+                        </button>
+                        <p class="text-xs text-slate-500 mt-2">Gunakan mod ini untuk imbasan langsung berterusan</p>
+                        <p id="camErrorText" class="hidden text-xs text-rose-400 mt-3 max-w-xs mx-auto leading-relaxed"></p>
+                    </div>
+
+                    <!-- Status Overlay: Paused for Verification -->
+                    <div id="scannerOverlay" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 text-center z-10">
+                        <i class="fa-solid fa-circle-pause text-amber-400 text-4xl mb-2 animate-bounce"></i>
+                        <p class="text-sm font-medium text-slate-200">Imbasan Digantung (Sahkan Kod)</p>
+                        <p class="text-xs text-slate-400 mt-1">Sila sahkan kod dalam tetingkap modal</p>
+                    </div>
+
+                    <!-- Status Overlay: Delay Countdown Timer -->
+                    <div id="delayOverlay" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-slate-950/85 backdrop-blur-sm p-4 text-center z-20">
+                        <div class="w-12 h-12 rounded-full border-4 border-amber-400 border-t-transparent animate-spin flex items-center justify-center mb-2">
+                            <span id="delayCountdownText" class="text-base font-bold text-amber-400 animate-none">3</span>
+                        </div>
+                        <p class="text-sm font-semibold text-slate-200">Sedia Untuk Imbasan Seterusnya</p>
+                    </div>
+                </div>
+
+                <div class="mt-3 flex items-center justify-between text-xs text-slate-400">
+                    <span class="flex items-center"><span id="camStatusDot" class="w-2 h-2 rounded-full bg-slate-500 inline-block mr-1.5"></span><span id="camStatusText">Kamera Bersedia</span></span>
+                    <span>Halakan kamera pada Barcode / QR</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= PAGE 2: NATIVE CAMERA SCANNER ================= -->
+        <section id="pageNative" class="hidden space-y-4">
+            <div class="bg-slate-800 rounded-2xl border border-slate-700 p-6 shadow-xl text-center space-y-5">
+                <div class="w-20 h-20 rounded-2xl bg-gradient-to-tr from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center mx-auto text-emerald-400 shadow-inner">
+                    <i class="fa-solid fa-camera-retro text-3xl"></i>
+                </div>
+                
+                <div class="space-y-1">
+                    <h2 class="text-lg font-bold text-white">Imbasan Kamera Natif Android</h2>
+                    <p class="text-xs text-slate-400 max-w-md mx-auto">Sesuai untuk semua jenis telefon Android. Buka aplikasi kamera asal telefon untuk ambil gambar atau muat naik dari galeri.</p>
+                </div>
+
+                <!-- Hidden Native Camera Inputs -->
+                <input type="file" id="nativeCameraInput" accept="image/*" capture="environment" class="hidden" onchange="handleNativeScan(event)">
+                <input type="file" id="galleryInput" accept="image/*" class="hidden" onchange="handleNativeScan(event)">
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                    <button onclick="document.getElementById('nativeCameraInput').click()" class="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-semibold py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-600/20 flex items-center justify-center space-x-2 transition-all">
+                        <i class="fa-solid fa-camera text-lg"></i>
+                        <span>Buka Kamera Telefon</span>
+                    </button>
+
+                    <button onclick="document.getElementById('galleryInput').click()" class="bg-slate-700 hover:bg-slate-600 active:scale-95 text-slate-200 font-semibold py-3.5 px-4 rounded-xl border border-slate-600 flex items-center justify-center space-x-2 transition-all">
+                        <i class="fa-solid fa-images text-lg text-emerald-400"></i>
+                        <span>Pilih Gambar dari Galeri</span>
+                    </button>
+                </div>
+
+                <div class="p-3 bg-slate-900/60 rounded-xl border border-slate-700/60 text-left flex items-start space-x-3">
+                    <i class="fa-solid fa-circle-info text-amber-400 text-sm mt-0.5"></i>
+                    <p class="text-[11px] text-slate-400 leading-relaxed">
+                        Mod kamera natif 100% dijamin berfungsi pada semua telefon Android tanpa sekatan keizinan pelayar.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= PAGE 3: BARCODE LIST PAGE ================= -->
+        <section id="pageList" class="hidden space-y-4">
+            <!-- Quick Actions Toolbar -->
+            <div class="grid grid-cols-3 gap-2 sm:gap-3">
+                <button onclick="shareToWhatsApp()" class="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-medium py-2.5 px-3 rounded-xl shadow-lg flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-2 transition-all">
+                    <i class="fa-brands fa-whatsapp text-lg"></i>
+                    <span class="text-xs font-semibold">WhatsApp</span>
+                </button>
+
+                <button onclick="sendEmail()" class="bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-medium py-2.5 px-3 rounded-xl shadow-lg flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-2 transition-all">
+                    <i class="fa-solid fa-envelope text-lg"></i>
+                    <span class="text-xs font-semibold">E-Mel</span>
+                </button>
+
+                <button onclick="exportToExcel()" class="bg-teal-600 hover:bg-teal-500 active:scale-95 text-white font-medium py-2.5 px-3 rounded-xl shadow-lg flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-2 transition-all">
+                    <i class="fa-solid fa-file-excel text-lg"></i>
+                    <span class="text-xs font-semibold">Muat Turun Excel</span>
+                </button>
+            </div>
+
+            <!-- List Card -->
+            <div class="bg-slate-800 rounded-2xl border border-slate-700 p-4 shadow-xl space-y-3">
+                <div class="flex items-center justify-between pb-2 border-b border-slate-700">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-list-ol text-emerald-400"></i>
+                        <h2 class="text-base font-semibold text-white">Senarai Imbasan Barcode</h2>
+                    </div>
+                    <button onclick="confirmClearAll()" class="text-xs text-rose-400 hover:text-rose-300 font-medium px-2 py-1 rounded hover:bg-rose-950/40 transition-colors flex items-center space-x-1">
+                        <i class="fa-solid fa-trash-can"></i>
+                        <span>Padam Semua</span>
+                    </button>
+                </div>
+
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                    <input type="text" id="searchInput" oninput="filterTable()" placeholder="Cari nombor kod atau nota..." class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <!-- Data Table -->
+                <div class="overflow-x-auto rounded-xl border border-slate-700/80">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-slate-900/90 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-700">
+                            <tr>
+                                <th class="py-3 px-3 w-8 text-center">#</th>
+                                <th class="py-3 px-3">Kod Discan</th>
+                                <th class="py-3 px-3">Nota / Label</th>
+                                <th class="py-3 px-3 w-20">Masa</th>
+                                <th class="py-3 px-3 w-16 text-center">Tindakan</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scannedTableBody" class="divide-y divide-slate-700/50 bg-slate-800/40 font-mono">
+                            <tr id="emptyRow">
+                                <td colspan="5" class="py-8 text-center text-slate-500 font-sans">
+                                    <i class="fa-solid fa-barcode text-3xl mb-2 text-slate-600 block"></i>
+                                    Belum ada imbasan. Buka tab kamera untuk mula imbas.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Bottom Navigation Bar (Mobile View Navigation) -->
+    <nav class="sm:hidden fixed bottom-0 left-0 right-0 bg-slate-800/95 border-t border-slate-700 backdrop-blur-md z-40 px-4 py-2 flex justify-around items-center">
+        <button id="bottomNavLive" onclick="switchTab('live')" class="flex flex-col items-center space-y-1 text-emerald-400">
+            <i class="fa-solid fa-video text-lg"></i>
+            <span class="text-[10px] font-semibold">Live Stream</span>
+        </button>
+        <button id="bottomNavNative" onclick="switchTab('native')" class="flex flex-col items-center space-y-1 text-slate-400">
+            <i class="fa-solid fa-camera-retro text-lg"></i>
+            <span class="text-[10px] font-semibold">Kamera Natif</span>
+        </button>
+        <button id="bottomNavList" onclick="switchTab('list')" class="flex flex-col items-center space-y-1 text-slate-400 relative">
+            <i class="fa-solid fa-list-check text-lg"></i>
+            <span class="text-[10px] font-semibold">Senarai</span>
+            <span id="mobileBadge" class="absolute -top-1 -right-2 bg-emerald-500 text-slate-950 text-[9px] font-bold px-1.5 py-0.2 rounded-full hidden">0</span>
+        </button>
+    </nav>
+
+    <!-- Footer Tagline -->
+    <footer class="py-4 text-center text-xs text-slate-400 border-t border-slate-800 bg-slate-900/80">
+        <p class="font-medium text-emerald-400 mb-0.5">Apps by Sharizal</p>
+        <p class="text-slate-500">Barcode & QR Scanner &bull; Hak Cipta &copy; 2026 Sharizal</p>
+    </footer>
+
+    <!-- Verification Modal -->
+    <div id="verifyModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-800 border border-slate-700 w-full max-w-md rounded-2xl shadow-2xl p-5 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+                <div class="flex items-center space-x-2 text-emerald-400 font-bold">
+                    <i class="fa-solid fa-circle-check text-xl"></i>
+                    <span class="text-base text-white">Sahkan Kod Imbasan</span>
+                </div>
+                <span class="text-xs bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-800 font-medium">Semak & Sahkan</span>
+            </div>
+
+            <div class="bg-slate-900 rounded-xl p-4 border border-slate-700 space-y-2">
+                <label for="modalScannedCodeInput" class="block text-xs text-slate-400 uppercase tracking-wider font-semibold">Kod Terkesan:</label>
+                <input type="text" id="modalScannedCodeInput" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-base font-bold font-mono text-emerald-400 focus:outline-none focus:border-emerald-500">
+                <p id="modalScanFormat" class="text-[10px] text-slate-500 font-mono">FORMAT: UNKNOWN</p>
+            </div>
+
+            <div>
+                <label for="itemNote" class="block text-xs font-medium text-slate-300 mb-1">Nota / Nama Item (Opsional):</label>
+                <input type="text" id="itemNote" placeholder="Cth: EV Charger Box 01" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 pt-2">
+                <button onclick="cancelScanResult()" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium py-2.5 px-4 rounded-xl transition-all">
+                    <i class="fa-solid fa-xmark mr-1"></i>Batal / Imbas Semula
+                </button>
+                <button onclick="confirmScanResult()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium py-2.5 px-4 rounded-xl shadow-lg transition-all">
+                    <i class="fa-solid fa-check mr-1"></i>Sahkan & Tambah
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-16 sm:bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 border border-slate-700 text-slate-100 text-xs px-4 py-2.5 rounded-xl shadow-2xl flex items-center space-x-2 opacity-0 pointer-events-none transition-all duration-300 z-50">
+        <i id="toastIcon" class="fa-solid fa-circle-info text-emerald-400"></i>
+        <span id="toastMsg">Pesanan dipaparkan di sini</span>
+    </div>
+
+    <!-- JavaScript App Logic -->
+    <script>
+        let html5QrCode = null;
+        let scannedDataList = [];
+        let pendingScanResult = null;
+        let isTorchOn = false;
+        let currentFacingMode = "environment";
+        let isScanning = false;
+        let scanDelaySeconds = 0;
+        let delayTimer = null;
+        let activeTab = "live";
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadFromLocalStorage();
+        });
+
+        // 3-Page Tab Switching Logic
+        function switchTab(tabName) {
+            activeTab = tabName;
+            
+            const pages = {
+                live: document.getElementById("pageLive"),
+                native: document.getElementById("pageNative"),
+                list: document.getElementById("pageList")
+            };
+
+            const topTabs = {
+                live: document.getElementById("topTabLive"),
+                native: document.getElementById("topTabNative"),
+                list: document.getElementById("topTabList")
+            };
+
+            const bottomNavs = {
+                live: document.getElementById("bottomNavLive"),
+                native: document.getElementById("bottomNavNative"),
+                list: document.getElementById("bottomNavList")
+            };
+
+            // Hide all pages & reset tab styles
+            Object.keys(pages).forEach(key => {
+                pages[key].classList.add("hidden");
+                topTabs[key].className = "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 text-slate-400 hover:text-slate-200";
+                bottomNavs[key].className = "flex flex-col items-center space-y-1 text-slate-400 relative";
+            });
+
+            // Show selected page & apply active style
+            pages[tabName].classList.remove("hidden");
+            topTabs[tabName].className = "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 bg-emerald-600 text-white shadow-md";
+            bottomNavs[tabName].className = "flex flex-col items-center space-y-1 text-emerald-400 relative";
+
+            if (tabName === "live") {
+                if (!isScanning) startScanner();
+            } else {
+                stopScanner();
+            }
+        }
+
+        async function populateCameraDropdown() {
+            const selectEl = document.getElementById("cameraSelect");
+            try {
+                const devices = await Html5Qrcode.getCameras();
+                if (devices && devices.length > 0) {
+                    selectEl.innerHTML = "";
+                    devices.forEach((device, index) => {
+                        const option = document.createElement("option");
+                        option.value = device.id;
+                        option.text = device.label || `Kamera ${index + 1}`;
+                        option.className = "bg-slate-800 text-slate-200";
+                        selectEl.appendChild(option);
+                    });
+                }
+            } catch (err) {}
+        }
+
+        async function changeCameraSource(value) {
+            if (html5QrCode && isScanning) {
+                await stopScanner();
+            }
+            currentFacingMode = value;
+            startScanner();
+            showToast("Sumber kamera ditukar.");
+        }
+
+        let isStarting = false;
+
+        function showCameraError(err) {
+            const raw = (err && err.name) ? (err.name + " " + (err.message || "")) : String(err);
+            let msg;
+            if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                msg = "Kamera hanya boleh digunakan melalui HTTPS (bukan fail tempatan file:// atau http). Hos fail ini di GitHub Pages / Netlify, kemudian buka dalam Chrome.";
+            } else if (/NotAllowed|Permission|Security/i.test(raw)) {
+                msg = window.self !== window.top
+                    ? "Kebenaran kamera disekat kerana halaman ini dibuka dalam bingkai (iframe/pratonton). Buka dalam tab Chrome sendiri."
+                    : "Kebenaran kamera ditolak. Tekan ikon gembok di bar alamat > Kebenaran > Kamera > Benarkan, kemudian muat semula halaman.";
+            } else if (/NotReadable|TrackStart|in use/i.test(raw)) {
+                msg = "Kamera sedang digunakan oleh aplikasi lain. Tutup aplikasi tersebut dan cuba lagi.";
+            } else if (/NotFound|Requested device not found/i.test(raw)) {
+                msg = "Tiada kamera dikesan pada peranti ini.";
+            } else {
+                msg = "Kamera gagal diaktifkan: " + raw.substring(0, 120);
+            }
+            const el = document.getElementById("camErrorText");
+            el.innerText = msg;
+            el.classList.remove("hidden");
+            document.getElementById("startBtnContainer").classList.remove("hidden");
+        }
+
+        async function startScanner() {
+            if (isScanning || isStarting || activeTab !== "live") return;
+
+            document.getElementById("camErrorText").classList.add("hidden");
+
+            if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                updateCameraStatus(false);
+                showCameraError(null);
+                return;
+            }
+
+            isStarting = true;
+            document.getElementById("startBtnContainer").classList.add("hidden");
+
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("reader");
+            }
+
+            const config = { fps: 10, qrbox: { width: 250, height: 180 } };
+            const first = (currentFacingMode === "environment" || currentFacingMode === "user")
+                ? { facingMode: currentFacingMode }
+                : currentFacingMode;
+
+            let started = false;
+            let lastErr = null;
+
+            try {
+                await html5QrCode.start(first, config, onScanSuccess, onScanFailure);
+                started = true;
+            } catch (err) {
+                lastErr = err;
+            }
+
+            // Fallback: sesetengah telefon Android menolak facingMode, cuba ikut ID kamera
+            if (!started && !/NotAllowed|Permission|Security/i.test(String(lastErr && (lastErr.name || lastErr)))) {
+                try {
+                    const cams = await Html5Qrcode.getCameras();
+                    if (cams && cams.length > 0) {
+                        let ordered = cams.slice();
+                        const back = ordered.filter(c => /back|rear|environment|belakang/i.test(c.label || ""));
+                        if (currentFacingMode === "user") {
+                            ordered = ordered.filter(c => /front|user|depan/i.test(c.label || "")).concat(ordered);
+                        } else {
+                            ordered = back.concat(ordered.slice().reverse());
+                        }
+                        for (const cam of ordered) {
+                            try {
+                                await html5QrCode.start(cam.id, config, onScanSuccess, onScanFailure);
+                                started = true;
+                                break;
+                            } catch (e2) { lastErr = e2; }
+                        }
+                    }
+                } catch (e3) { lastErr = e3; }
+            }
+
+            isStarting = false;
+
+            if (started) {
+                isScanning = true;
+                updateCameraStatus(true);
+            } else {
+                isScanning = false;
+                updateCameraStatus(false);
+                showCameraError(lastErr);
+            }
+        }
+
+        async function stopScanner() {
+            if (html5QrCode && isScanning) {
+                try { await html5QrCode.stop(); } catch (err) {}
+            }
+            isScanning = false;
+            isTorchOn = false;
+            updateTorchUI();
+            updateCameraStatus(false);
+        }
+
+        function updateCameraStatus(active) {
+            const dot = document.getElementById("camStatusDot");
+            const text = document.getElementById("camStatusText");
+            if (active) {
+                dot.className = "w-2 h-2 rounded-full bg-emerald-500 inline-block mr-1.5 animate-pulse";
+                text.innerText = "Kamera Aktif";
+            } else {
+                dot.className = "w-2 h-2 rounded-full bg-rose-500 inline-block mr-1.5";
+                text.innerText = "Kamera Digantung";
+            }
+        }
+
+        async function handleNativeScan(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            showToast("Memproses imej kod...");
+
+            try {
+                const fileScanner = new Html5Qrcode("fileReader");
+                const decodedText = await fileScanner.scanFile(file, false);
+                playBeep();
+                
+                pendingScanResult = {
+                    code: decodedText,
+                    format: "NATIVE-CAMERA"
+                };
+
+                document.getElementById("modalScannedCodeInput").value = decodedText;
+                document.getElementById("modalScanFormat").innerText = "FORMAT: BARCODE/QR (NATIVE)";
+                document.getElementById("itemNote").value = "";
+                document.getElementById("verifyModal").classList.remove("hidden");
+
+            } catch (err) {
+                showToast("Kod tidak dikesan pada imej. Sila cuba lagi.", "error");
+            } finally {
+                event.target.value = "";
+            }
+        }
+
+        async function toggleTorch() {
+            if (!isScanning || !html5QrCode) {
+                showToast("Sila aktifkan kamera terlebih dahulu.", "error");
+                return;
+            }
+            try {
+                isTorchOn = !isTorchOn;
+                await html5QrCode.applyVideoConstraints({ advanced: [{ torch: isTorchOn }] });
+                updateTorchUI();
+            } catch (err) {
+                showToast("Lampu tidak disokong pada peranti ini.", "error");
+                isTorchOn = false;
+                updateTorchUI();
+            }
+        }
+
+        function updateTorchUI() {
+            const icon = document.getElementById("torchIcon");
+            const status = document.getElementById("torchStatus");
+            const btn = document.getElementById("torchBtn");
+
+            if (isTorchOn) {
+                icon.className = "fa-solid fa-bolt text-amber-400 mr-1.5 animate-pulse";
+                status.innerText = "Lampu ON";
+                btn.classList.add("bg-amber-950/60", "border-amber-600/50", "text-amber-300");
+            } else {
+                icon.className = "fa-solid fa-bolt mr-1.5";
+                status.innerText = "Lampu OFF";
+                btn.classList.remove("bg-amber-950/60", "border-amber-600/50", "text-amber-300");
+            }
+        }
+
+        function onScanSuccess(decodedText, decodedResult) {
+            playBeep();
+
+            if (html5QrCode && html5QrCode.getState() === Html5QrcodeScannerState.SCANNING) {
+                html5QrCode.pause(true);
+            }
+            document.getElementById("scannerOverlay").classList.remove("hidden");
+
+            pendingScanResult = {
+                code: decodedText,
+                format: decodedResult.result.format ? decodedResult.result.format.formatName : "BARCODE/QR"
+            };
+
+            document.getElementById("modalScannedCodeInput").value = decodedText;
+            document.getElementById("modalScanFormat").innerText = "FORMAT: " + pendingScanResult.format;
+            document.getElementById("itemNote").value = "";
+            document.getElementById("verifyModal").classList.remove("hidden");
+        }
+
+        function onScanFailure(error) {}
+
+        function confirmScanResult() {
+            const codeInput = document.getElementById("modalScannedCodeInput").value.trim();
+            if (!codeInput) {
+                showToast("Sila masukkan kod yang sah.", "error");
+                return;
+            }
+
+            const note = document.getElementById("itemNote").value.trim();
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+            const newItem = {
+                id: Date.now(),
+                code: codeInput,
+                format: pendingScanResult ? pendingScanResult.format : "MANUAL",
+                note: note || "-",
+                timestamp: timeStr,
+                date: now.toLocaleDateString('ms-MY')
+            };
+
+            scannedDataList.unshift(newItem);
+            saveToLocalStorage();
+            renderTable();
+
+            showToast("Item berjaya ditambah!");
+            closeVerifyModalAndResumeWithDelay();
+        }
+
+        function cancelScanResult() {
+            pendingScanResult = null;
+            closeVerifyModalAndResumeWithDelay();
+            showToast("Imbasan dibatalkan.");
+        }
+
+        function closeVerifyModalAndResumeWithDelay() {
+            document.getElementById("verifyModal").classList.add("hidden");
+            document.getElementById("scannerOverlay").classList.add("hidden");
+
+            const delay = parseInt(scanDelaySeconds, 10) || 0;
+
+            if (delay <= 0) {
+                resumeCameraScanner();
+            } else {
+                startDelayCountdown(delay);
+            }
+        }
+
+        function startDelayCountdown(seconds) {
+            const delayOverlay = document.getElementById("delayOverlay");
+            const countdownText = document.getElementById("delayCountdownText");
+
+            delayOverlay.classList.remove("hidden");
+            let timeLeft = seconds;
+            countdownText.innerText = timeLeft;
+
+            if (delayTimer) clearInterval(delayTimer);
+
+            delayTimer = setInterval(() => {
+                timeLeft--;
+                if (timeLeft > 0) {
+                    countdownText.innerText = timeLeft;
+                } else {
+                    clearInterval(delayTimer);
+                    delayOverlay.classList.add("hidden");
+                    resumeCameraScanner();
+                }
+            }, 1000);
+        }
+
+        function resumeCameraScanner() {
+            if (activeTab === "live" && html5QrCode && html5QrCode.getState() === Html5QrcodeScannerState.PAUSED) {
+                html5QrCode.resume();
+            }
+        }
+
+        function changeDelaySetting(val) {
+            scanDelaySeconds = parseInt(val, 10) || 0;
+            saveDelaySetting();
+            showToast(`Delay imbasan disetkan ke ${scanDelaySeconds} saat.`);
+        }
+
+        function renderTable(dataToRender = scannedDataList) {
+            const tbody = document.getElementById("scannedTableBody");
+            const badgeHeader = document.getElementById("scanCountBadgeHeader");
+            const mobileBadge = document.getElementById("mobileBadge");
+
+            const totalCount = scannedDataList.length;
+            badgeHeader.innerText = totalCount;
+
+            if (totalCount > 0) {
+                mobileBadge.innerText = totalCount;
+                mobileBadge.classList.remove("hidden");
+            } else {
+                mobileBadge.classList.add("hidden");
+            }
+
+            if (dataToRender.length === 0) {
+                tbody.innerHTML = `
+                    <tr id="emptyRow">
+                        <td colspan="5" class="py-8 text-center text-slate-500 font-sans">
+                            <i class="fa-solid fa-barcode text-3xl mb-2 text-slate-600 block"></i>
+                            Tiada rekod imbasan ditemui.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = dataToRender.map((item, index) => `
+                <tr class="hover:bg-slate-700/30 transition-colors">
+                    <td class="py-3 px-3 text-center text-slate-500">${dataToRender.length - index}</td>
+                    <td class="py-3 px-3 font-bold text-emerald-400 break-all select-all">${escapeHtml(item.code)}</td>
+                    <td class="py-3 px-3 text-slate-300 font-sans">
+                        <span id="noteText_${item.id}">${escapeHtml(item.note)}</span>
+                    </td>
+                    <td class="py-3 px-3 text-slate-400 text-[11px]">${item.timestamp}</td>
+                    <td class="py-3 px-3 text-center space-x-1">
+                        <button onclick="editNote(${item.id})" class="text-amber-400 hover:text-amber-300 p-1 rounded hover:bg-amber-950/40 transition-colors" title="Edit Nota">
+                            <i class="fa-solid fa-pen"></i>
+                        </button>
+                        <button onclick="deleteItem(${item.id})" class="text-rose-400 hover:text-rose-300 p-1 rounded hover:bg-rose-950/50 transition-colors" title="Padam">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterTable() {
+            const query = document.getElementById("searchInput").value.toLowerCase().trim();
+            if (!query) {
+                renderTable(scannedDataList);
+                return;
+            }
+
+            const filtered = scannedDataList.filter(item => 
+                item.code.toLowerCase().includes(query) || 
+                item.note.toLowerCase().includes(query)
+            );
+            renderTable(filtered);
+        }
+
+        function editNote(id) {
+            const item = scannedDataList.find(i => i.id === id);
+            if (!item) return;
+
+            const newNote = prompt("Kemaskini Nota / Label untuk kod " + item.code + ":", item.note === "-" ? "" : item.note);
+            if (newNote !== null) {
+                item.note = newNote.trim() || "-";
+                saveToLocalStorage();
+                filterTable();
+                showToast("Nota dikemas kini.");
+            }
+        }
+
+        function deleteItem(id) {
+            scannedDataList = scannedDataList.filter(item => item.id !== id);
+            saveToLocalStorage();
+            filterTable();
+            showToast("Item dipadam");
+        }
+
+        function confirmClearAll() {
+            if (scannedDataList.length === 0) {
+                showToast("Senarai sedia ada kosong.");
+                return;
+            }
+
+            if (confirm("Adakah anda pasti untuk memadam SEMUA rekod imbasan?")) {
+                scannedDataList = [];
+                saveToLocalStorage();
+                renderTable();
+                showToast("Semua rekod telah dipadam.");
+            }
+        }
+
+        function exportToExcel() {
+            if (scannedDataList.length === 0) {
+                showToast("Tiada data untuk dieksport!", "error");
+                return;
+            }
+
+            const exportData = scannedDataList.map((item, index) => ({
+                "No.": index + 1,
+                "Nombor Kod / Serial": item.code,
+                "Format Kod": item.format,
+                "Nota / Label": item.note,
+                "Tarikh": item.date,
+                "Masa Imbasan": item.timestamp
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            worksheet['!cols'] = [{ wch: 6 }, { wch: 35 }, { wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 15 }];
+
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Imbasan Barcode");
+
+            XLSX.writeFile(workbook, "Scanned_Barcodes.xlsx");
+            showToast("Fail Excel Scanned_Barcodes.xlsx dimuat turun!");
+        }
+
+        function shareToWhatsApp() {
+            if (scannedDataList.length === 0) {
+                showToast("Tiada data imbasan untuk dikongsi ke WhatsApp.", "error");
+                return;
+            }
+
+            let message = generateSummaryText();
+            const encodedMessage = encodeURIComponent(message);
+            window.open(`https://api.whatsapp.com/send?text=${encodedMessage}`, '_blank');
+        }
+
+        function sendEmail() {
+            if (scannedDataList.length === 0) {
+                showToast("Tiada data imbasan untuk dihantar melalui e-mel.", "error");
+                return;
+            }
+
+            const subject = encodeURIComponent(`Laporan Imbasan Barcode (${scannedDataList.length} Item)`);
+            const body = encodeURIComponent(generateSummaryText());
+            window.location.href = `mailto:?subject=${subject}&body=${body}`;
+        }
+
+        function generateSummaryText() {
+            let message = `*SENARAI IMBASAN BARCODE / QR*\n`;
+            message += `_Jumlah Item: ${scannedDataList.length}_\n`;
+            message += `------------------------------------\n\n`;
+
+            scannedDataList.forEach((item, idx) => {
+                message += `*${idx + 1}.* \`${item.code}\`\n`;
+                if (item.note && item.note !== "-") {
+                    message += `    📝 Nota: ${item.note}\n`;
+                }
+                message += `    ⏰ Masa: ${item.timestamp}\n\n`;
+            });
+
+            message += `------------------------------------\n`;
+            message += `_Dihantar melalui Aplikasi Barcode Scanner_`;
+            return message;
+        }
+
+        function playBeep() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                
+                osc.type = "sine";
+                osc.frequency.setValueAtTime(880, ctx.currentTime);
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                
+                osc.start();
+                osc.stop(ctx.currentTime + 0.15);
+            } catch (e) {}
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem('barcode_scanned_items', JSON.stringify(scannedDataList));
+        }
+
+        function saveDelaySetting() {
+            localStorage.setItem('barcode_scan_delay', scanDelaySeconds.toString());
+        }
+
+        function loadFromLocalStorage() {
+            const saved = localStorage.getItem('barcode_scanned_items');
+            if (saved) {
+                try {
+                    scannedDataList = JSON.parse(saved);
+                    renderTable();
+                } catch (e) {
+                    scannedDataList = [];
+                }
+            }
+        }
+
+        function showToast(message, type = "info") {
+            const toast = document.getElementById("toast");
+            const msg = document.getElementById("toastMsg");
+            const icon = document.getElementById("toastIcon");
+
+            msg.innerText = message;
+
+            if (type === "error") {
+                icon.className = "fa-solid fa-circle-exclamation text-rose-400";
+            } else {
+                icon.className = "fa-solid fa-circle-info text-emerald-400";
+            }
+
+            toast.classList.remove("opacity-0", "pointer-events-none");
+            toast.classList.add("opacity-100");
+
+            setTimeout(() => {
+                toast.classList.remove("opacity-100");
+                toast.classList.add("opacity-0", "pointer-events-none");
+            }, 3000);
+        }
+
+        function escapeHtml(str) {
+            return String(str).replace(/[&<>"']/g, function(m) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                }[m];
+            });
+        }
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+        }
+    </script>
+</body>
+</html>
