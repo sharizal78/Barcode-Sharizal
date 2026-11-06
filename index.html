@@ -34,6 +34,24 @@
         #reader__dashboard_section_csr { 
             display: none !important; 
         }
+
+        /* Animasi Garisan Laser Merah */
+        @keyframes scanline {
+            0% { top: 5%; opacity: 0.8; }
+            50% { top: 90%; opacity: 1; }
+            100% { top: 5%; opacity: 0.8; }
+        }
+        .scan-line {
+            position: absolute;
+            left: 5%;
+            right: 5%;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, #ef4444, #f87171, #ef4444, transparent);
+            box-shadow: 0 0 12px #ef4444, 0 0 4px #f87171;
+            animation: scanline 2.5s ease-in-out infinite;
+            pointer-events: none;
+            z-index: 5;
+        }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen font-sans flex flex-col justify-between pb-16 sm:pb-0">
@@ -105,6 +123,9 @@
                     <div id="reader" class="w-full"></div>
                     <div id="fileReader" style="display:none"></div>
                     
+                    <!-- Laser Scan Line Layer -->
+                    <div id="scanLine" class="scan-line hidden"></div>
+
                     <div id="startBtnContainer" class="p-6 text-center">
                         <button onclick="startScanner()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold py-2.5 px-5 rounded-xl shadow-lg transition-all flex items-center justify-center mx-auto space-x-2">
                             <i class="fa-solid fa-play"></i>
@@ -488,12 +509,16 @@
         function updateCameraStatus(active) {
             const dot = document.getElementById("camStatusDot");
             const text = document.getElementById("camStatusText");
+            const scanLine = document.getElementById("scanLine");
+
             if (active) {
                 dot.className = "w-2 h-2 rounded-full bg-emerald-500 inline-block mr-1.5 animate-pulse";
                 text.innerText = "Kamera Aktif";
+                if (scanLine) scanLine.classList.remove("hidden");
             } else {
                 dot.className = "w-2 h-2 rounded-full bg-rose-500 inline-block mr-1.5";
                 text.innerText = "Kamera Digantung";
+                if (scanLine) scanLine.classList.add("hidden");
             }
         }
 
@@ -564,6 +589,9 @@
                 html5QrCode.pause(true);
             }
             document.getElementById("scannerOverlay").classList.remove("hidden");
+            
+            const scanLine = document.getElementById("scanLine");
+            if (scanLine) scanLine.classList.add("hidden");
 
             pendingScanResult = {
                 code: decodedText,
@@ -650,6 +678,8 @@
         function resumeCameraScanner() {
             if (activeTab === "live" && html5QrCode && html5QrCode.getState() === Html5QrcodeScannerState.PAUSED) {
                 html5QrCode.resume();
+                const scanLine = document.getElementById("scanLine");
+                if (scanLine) scanLine.classList.remove("hidden");
             }
         }
 
