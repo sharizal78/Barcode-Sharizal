@@ -218,8 +218,8 @@
                         <thead class="bg-slate-900/90 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-700">
                             <tr>
                                 <th class="py-3 px-3 w-8 text-center">#</th>
-                                <th class="py-3 px-3 w-20 text-center">Tindakan</th> <!-- Dipindah ke kiri -->
-                                <th class="py-3 px-3 min-w-[220px]">Kod Discan</th> <!-- Dilebarkan & 1 baris -->
+                                <th class="py-3 px-3 w-20 text-center">Tindakan</th>
+                                <th class="py-3 px-3 min-w-[220px]">Kod Discan</th>
                                 <th class="py-3 px-3">Nota / Label</th>
                                 <th class="py-3 px-3 w-20">Masa</th>
                             </tr>
@@ -441,7 +441,6 @@
                 lastErr = err;
             }
 
-            // Fallback: sesetengah telefon Android menolak facingMode, cuba ikut ID kamera
             if (!started && !/NotAllowed|Permission|Security/i.test(String(lastErr && (lastErr.name || lastErr)))) {
                 try {
                     const cams = await Html5Qrcode.getCameras();
