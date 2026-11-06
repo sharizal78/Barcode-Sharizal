@@ -218,10 +218,10 @@
                         <thead class="bg-slate-900/90 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-700">
                             <tr>
                                 <th class="py-3 px-3 w-8 text-center">#</th>
-                                <th class="py-3 px-3">Kod Discan</th>
+                                <th class="py-3 px-3 w-20 text-center">Tindakan</th> <!-- Dipindah ke kiri -->
+                                <th class="py-3 px-3 min-w-[220px]">Kod Discan</th> <!-- Dilebarkan & 1 baris -->
                                 <th class="py-3 px-3">Nota / Label</th>
                                 <th class="py-3 px-3 w-20">Masa</th>
-                                <th class="py-3 px-3 w-16 text-center">Tindakan</th>
                             </tr>
                         </thead>
                         <tbody id="scannedTableBody" class="divide-y divide-slate-700/50 bg-slate-800/40 font-mono">
@@ -690,12 +690,8 @@
             tbody.innerHTML = dataToRender.map((item, index) => `
                 <tr class="hover:bg-slate-700/30 transition-colors">
                     <td class="py-3 px-3 text-center text-slate-500">${dataToRender.length - index}</td>
-                    <td class="py-3 px-3 font-bold text-emerald-400 break-all select-all">${escapeHtml(item.code)}</td>
-                    <td class="py-3 px-3 text-slate-300 font-sans">
-                        <span id="noteText_${item.id}">${escapeHtml(item.note)}</span>
-                    </td>
-                    <td class="py-3 px-3 text-slate-400 text-[11px]">${item.timestamp}</td>
-                    <td class="py-3 px-3 text-center space-x-1">
+                    <!-- Kolum Tindakan di Kiri -->
+                    <td class="py-3 px-3 text-center space-x-1 whitespace-nowrap">
                         <button onclick="editNote(${item.id})" class="text-amber-400 hover:text-amber-300 p-1 rounded hover:bg-amber-950/40 transition-colors" title="Edit Nota">
                             <i class="fa-solid fa-pen"></i>
                         </button>
@@ -703,6 +699,12 @@
                             <i class="fa-solid fa-trash"></i>
                         </button>
                     </td>
+                    <!-- Kolum Kod Discan Diluaskan & 1 Baris -->
+                    <td class="py-3 px-3 font-bold text-emerald-400 whitespace-nowrap overflow-x-auto select-all max-w-[280px] sm:max-w-md">${escapeHtml(item.code)}</td>
+                    <td class="py-3 px-3 text-slate-300 font-sans">
+                        <span id="noteText_${item.id}">${escapeHtml(item.note)}</span>
+                    </td>
+                    <td class="py-3 px-3 text-slate-400 text-[11px] whitespace-nowrap">${item.timestamp}</td>
                 </tr>
             `).join('');
         }
